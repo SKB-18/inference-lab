@@ -26,7 +26,7 @@ graph TD
 | --- | --- | --- | --- | --- |
 | M1 Baseline (Sequential) | CPU/Local | 1 | ~20 | ~200 |
 | M2 Continuous Batching | CPU/Local | 20 | ~80 | ~250 |
-| M3 Speculative Decoding | In Progress | - | - | - |
+| M3 Speculative Decoding (K=4) | CPU/Local | 1 | ~140 | ~200 |
 | M4 KV Eviction | Planned | - | - | - |
 
 ## Running Locally

@@ -4,6 +4,7 @@ import './App.css'
 function App() {
   const [prompt, setPrompt] = useState('Explain the concept of continuous batching.')
   const [maxTokens, setMaxTokens] = useState(50)
+  const [mode, setMode] = useState('batching')
   const [streamingText, setStreamingText] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
   const [metrics, setMetrics] = useState({ ttft: null, tps: null, time: null })
@@ -31,7 +32,7 @@ function App() {
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ prompt, max_tokens: parseInt(maxTokens) })
+        body: JSON.stringify({ prompt, max_tokens: parseInt(maxTokens), mode })
       })
       
       const reader = response.body.getReader()
@@ -72,13 +73,20 @@ function App() {
   return (
     <div className="dashboard">
       <header className="header">
-        <h1>Inference Lab <span className="badge">M2 Batching</span></h1>
+        <h1>Inference Lab <span className="badge">M3 Speculative</span></h1>
         <p className="subtitle">Real-time LLM Engine Visualization</p>
       </header>
       
       <main className="main-content">
         <div className="control-panel panel">
           <h2>Request Controls</h2>
+          <div className="input-group">
+            <label>Mode</label>
+            <select value={mode} onChange={e => setMode(e.target.value)} style={{width: '100%', background: 'rgba(15, 23, 42, 0.6)', color: 'white', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.8rem'}}>
+              <option value="batching">Continuous Batching (M2)</option>
+              <option value="speculative">Speculative Decoding (M3)</option>
+            </select>
+          </div>
           <div className="input-group">
             <label>Prompt</label>
             <textarea 
