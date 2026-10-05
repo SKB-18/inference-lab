@@ -85,6 +85,7 @@ function App() {
             <select value={mode} onChange={e => setMode(e.target.value)} style={{width: '100%', background: 'rgba(15, 23, 42, 0.6)', color: 'white', border: '1px solid var(--border-color)', borderRadius: '8px', padding: '0.8rem'}}>
               <option value="batching">Continuous Batching (M2)</option>
               <option value="speculative">Speculative Decoding (M3)</option>
+              <option value="eviction">KV Cache Eviction (M4)</option>
             </select>
           </div>
           <div className="input-group">

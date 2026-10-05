@@ -10,15 +10,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
 
-# M2 & M3 Engines
+# M2, M3, M4 Engines
 from engine.batching_queue import BatchingEngine
 from engine.speculative import SpeculativeEngine
+from engine.cache_eviction import KVCacheEvictionEngine
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
 batching_engine = BatchingEngine(max_batch_size=16)
 speculative_engine = SpeculativeEngine(k=4)
+eviction_engine = KVCacheEvictionEngine(budget_mb=50) # 50MB budget for testing
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -41,14 +43,19 @@ app.add_middleware(
 class GenerateRequest(BaseModel):
     prompt: str
     max_tokens: int = 50
-    mode: str = "batching" # 'batching' or 'speculative'
+    mode: str = "batching" # 'batching', 'speculative', or 'eviction'
 
 @app.post("/v1/completions")
 async def completions(request: GenerateRequest):
     start_time = time.time()
     
     # Select engine
-    active_engine = speculative_engine if request.mode == "speculative" else batching_engine
+    if request.mode == "speculative":
+        active_engine = speculative_engine
+    elif request.mode == "eviction":
+        active_engine = eviction_engine
+    else:
+        active_engine = batching_engine
     
     async def stream_generator():
         first_token = True
