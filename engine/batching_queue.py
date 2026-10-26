@@ -80,6 +80,9 @@ class BatchingEngine:
         if max_tokens <= 0:
             return
 
+        if not self.running:
+            await self.start()
+
         self.request_counter += 1
         req_id = f"req-{self.request_counter}"
         

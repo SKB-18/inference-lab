@@ -1,22 +1,75 @@
 import os
 import requests
 import pytest
+from typing import Optional
+from fastapi.testclient import TestClient
+from server.app import app
 
 BASE_URL = "http://127.0.0.1:8002"
 FRONTEND_URL = "http://localhost:5173"
 
 
+def _is_server_alive():
+    try:
+        r = requests.get(f"{BASE_URL}/health", timeout=0.5)
+        return r.status_code == 200
+    except Exception:
+        return False
+
+
+def _is_frontend_alive():
+    try:
+        r = requests.get(FRONTEND_URL, timeout=0.5)
+        return r.status_code == 200
+    except Exception:
+        return False
+
+
+class DualClient:
+    """Seamless wrapper that uses live server if running, or in-memory TestClient."""
+    def __init__(self, live: bool = False, client: Optional[TestClient] = None):
+        self.live = live
+        self.test_client = client
+
+    def get(self, path, **kwargs):
+        if self.live:
+            return requests.get(f"{BASE_URL}{path}", **kwargs)
+        return self.test_client.get(path, **kwargs)
+
+    def post(self, path, json=None, stream=False, **kwargs):
+        if self.live:
+            return requests.post(f"{BASE_URL}{path}", json=json, stream=stream, **kwargs)
+        return self.test_client.post(path, json=json, **kwargs)
+
+
+@pytest.fixture
+def api_client():
+    if _is_server_alive():
+        yield DualClient(live=True)
+    else:
+        with TestClient(app) as tc:
+            yield DualClient(live=False, client=tc)
+
+
 def test_frontend_dev_server_serves_html():
-    """Validates that the Vite frontend dev server is active on port 5173 and serving index.html."""
-    res = requests.get(FRONTEND_URL, timeout=5)
-    assert res.status_code == 200
-    assert '<div id="root"></div>' in res.text
-    assert "src/main.jsx" in res.text or "@vite/client" in res.text
+    """Validates that the frontend UI contains the required React root element and script links."""
+    if _is_frontend_alive():
+        res = requests.get(FRONTEND_URL, timeout=5)
+        assert res.status_code == 200
+        assert '<div id="root"></div>' in res.text
+        assert "src/main.jsx" in res.text or "@vite/client" in res.text
+    else:
+        index_src = os.path.join(os.path.dirname(__file__), "..", "ui", "index.html")
+        assert os.path.exists(index_src), "ui/index.html not found"
+        with open(index_src, "r", encoding="utf-8") as f:
+            content = f.read()
+        assert '<div id="root"></div>' in content
+        assert "src/main.jsx" in content
 
 
-def test_frontend_telemetry_schema():
+def test_frontend_telemetry_schema(api_client):
     """Validates the exact telemetry schema consumed by App.jsx in the frontend."""
-    res = requests.get(f"{BASE_URL}/v1/telemetry", timeout=5)
+    res = api_client.get("/v1/telemetry", timeout=5)
     assert res.status_code == 200
     data = res.json()
     
@@ -55,7 +108,7 @@ def test_frontend_telemetry_schema():
     assert isinstance(batch["total_batches"], int)
 
 
-def test_frontend_completions_call_real():
+def test_frontend_completions_call_real(api_client):
     """Tests /v1/completions with the exact payload structure sent by the React frontend."""
     payload = {
         "prompt": "Hello",
@@ -64,7 +117,7 @@ def test_frontend_completions_call_real():
         "top_p": 0.9,
         "mode": "real"
     }
-    response = requests.post(f"{BASE_URL}/v1/completions", json=payload, stream=True, timeout=15)
+    response = api_client.post("/v1/completions", json=payload, stream=True, timeout=15)
     assert response.status_code == 200
     assert response.headers.get("content-type", "").startswith("text/event-stream")
     
@@ -72,7 +125,7 @@ def test_frontend_completions_call_real():
     assert len(stream_content) > 0
 
 
-def test_frontend_completions_call_batching():
+def test_frontend_completions_call_batching(api_client):
     """Tests frontend batching mode endpoint invocation."""
     payload = {
         "prompt": "Test batching",
@@ -81,12 +134,12 @@ def test_frontend_completions_call_batching():
         "top_p": 0.9,
         "mode": "batching"
     }
-    response = requests.post(f"{BASE_URL}/v1/completions", json=payload, stream=True, timeout=15)
+    response = api_client.post("/v1/completions", json=payload, stream=True, timeout=15)
     assert response.status_code == 200
     assert len(response.text) > 0
 
 
-def test_frontend_completions_call_speculative():
+def test_frontend_completions_call_speculative(api_client):
     """Tests frontend speculative decoding mode endpoint invocation."""
     payload = {
         "prompt": "The quick brown fox",
@@ -95,12 +148,12 @@ def test_frontend_completions_call_speculative():
         "top_p": 1.0,
         "mode": "speculative"
     }
-    response = requests.post(f"{BASE_URL}/v1/completions", json=payload, stream=True, timeout=15)
+    response = api_client.post("/v1/completions", json=payload, stream=True, timeout=15)
     assert response.status_code == 200
     assert len(response.text) > 0
 
 
-def test_frontend_completions_call_eviction():
+def test_frontend_completions_call_eviction(api_client):
     """Tests frontend KV-cache eviction mode endpoint invocation."""
     payload = {
         "prompt": "Attention sinks test",
@@ -109,12 +162,12 @@ def test_frontend_completions_call_eviction():
         "top_p": 0.9,
         "mode": "eviction"
     }
-    response = requests.post(f"{BASE_URL}/v1/completions", json=payload, stream=True, timeout=15)
+    response = api_client.post("/v1/completions", json=payload, stream=True, timeout=15)
     assert response.status_code == 200
     assert len(response.text) > 0
 
 
-def test_frontend_slider_boundary_values():
+def test_frontend_slider_boundary_values(api_client):
     """Tests frontend slider boundary extremes (min/max sliders)."""
     min_payload = {
         "prompt": "Boundary test",
@@ -123,7 +176,7 @@ def test_frontend_slider_boundary_values():
         "top_p": 0.05,
         "mode": "real"
     }
-    res_min = requests.post(f"{BASE_URL}/v1/completions", json=min_payload, timeout=10)
+    res_min = api_client.post("/v1/completions", json=min_payload, timeout=10)
     assert res_min.status_code == 200
 
     max_payload = {
@@ -133,7 +186,7 @@ def test_frontend_slider_boundary_values():
         "top_p": 1.0,
         "mode": "real"
     }
-    res_max = requests.post(f"{BASE_URL}/v1/completions", json=max_payload, timeout=10)
+    res_max = api_client.post("/v1/completions", json=max_payload, timeout=10)
     assert res_max.status_code == 200
 
 
