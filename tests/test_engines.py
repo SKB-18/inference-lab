@@ -1,25 +1,26 @@
 import pytest
-from engine.speculative import SpeculativeEngine
-from engine.cache_eviction import KVCacheEvictionEngine
+from server.app import speculative_engine, eviction_engine, batching_engine, hf_engine
+
+
+def test_engines_initialization():
+    assert hf_engine.model is not None
+    assert hf_engine.tokenizer is not None
+    assert speculative_engine.model is hf_engine.model
+    assert eviction_engine.model is hf_engine.model
+    assert batching_engine.model is hf_engine.model
+
 
 @pytest.mark.asyncio
-async def test_speculative_engine_generation():
-    engine = SpeculativeEngine(target_latency=0.01, draft_latency=0.001, k=4)
-    tokens = []
-    async for token in engine.generate_stream("Test prompt", max_tokens=10):
-        tokens.append(token)
-        
-    assert len(tokens) == 10
-    assert "Test" in tokens[0]
+async def test_speculative_engine_telemetry():
+    telemetry = speculative_engine.get_telemetry()
+    assert "acceptance_rate" in telemetry
+    assert "tokens_per_step" in telemetry
+    assert telemetry["k"] == 4
+
 
 @pytest.mark.asyncio
-async def test_eviction_engine_generation():
-    # Set a tiny budget to force eviction immediately
-    engine = KVCacheEvictionEngine(budget_mb=1)
-    tokens = []
-    async for token in engine.generate_stream("Test long context prompt " * 10, max_tokens=15):
-        tokens.append(token)
-        
-    assert len(tokens) == 15
-    # Ensure VRAM metric is embedded in output
-    assert "[VRAM:" in tokens[-1]
+async def test_eviction_engine_telemetry():
+    telemetry = eviction_engine.get_telemetry()
+    assert "budget_tokens" in telemetry
+    assert "num_sink_tokens" in telemetry
+    assert "total_tokens_evicted" in telemetry

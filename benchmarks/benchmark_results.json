@@ -1,0 +1,26 @@
+[
+  {
+    "mode": "M1 Sequential (Baseline)",
+    "concurrency": 1,
+    "wall_time_sec": 14.62,
+    "total_tokens": 48,
+    "mean_ttft_sec": 0.89,
+    "throughput_tps": 3.28
+  },
+  {
+    "mode": "batching",
+    "concurrency": 2,
+    "wall_time_sec": 25.2,
+    "total_tokens": 30,
+    "mean_ttft_sec": 1.624,
+    "throughput_tps": 1.19
+  },
+  {
+    "mode": "batching",
+    "concurrency": 4,
+    "wall_time_sec": 40.49,
+    "total_tokens": 60,
+    "mean_ttft_sec": 2.443,
+    "throughput_tps": 1.48
+  }
+]

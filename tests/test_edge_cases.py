@@ -1,5 +1,4 @@
 import pytest
-import asyncio
 from fastapi.testclient import TestClient
 from server.app import app
 
@@ -9,23 +8,30 @@ def client():
         yield c
 
 def test_empty_prompt(client):
-    response = client.post("/v1/completions", json={"prompt": "", "max_tokens": 10})
+    response = client.post("/v1/completions", json={"prompt": "", "max_tokens": 5})
     assert response.status_code == 200
-    # Even if empty, the simulation should return some generated tokens based on dummy engine
-    assert len(response.content) > 0
 
 def test_zero_max_tokens(client):
     response = client.post("/v1/completions", json={"prompt": "Hello", "max_tokens": 0})
     assert response.status_code == 200
-    # Dummy engine might return the prompt word
-    assert b"Hello" in response.content
+    assert len(response.content) == 0
 
-def test_huge_max_tokens(client):
-    # Testing an edge case where max_tokens is unusually large, but limit for test speed
-    response = client.post("/v1/completions", json={"prompt": "Test", "max_tokens": 100})
+def test_extreme_temperature_greedy(client):
+    response = client.post(
+        "/v1/completions", 
+        json={"prompt": "1 2 3", "max_tokens": 3, "temperature": 0.0}
+    )
     assert response.status_code == 200
-    assert len(response.content) > 50
+    assert len(response.content) > 0
 
-def test_missing_fields(client):
+def test_extreme_temperature_high(client):
+    response = client.post(
+        "/v1/completions", 
+        json={"prompt": "1 2 3", "max_tokens": 3, "temperature": 1.5, "top_p": 0.95}
+    )
+    assert response.status_code == 200
+    assert len(response.content) > 0
+
+def test_missing_prompt_field(client):
     response = client.post("/v1/completions", json={"max_tokens": 10}) # Missing prompt
-    assert response.status_code == 422 # Unprocessable Entity (FastAPI validation)
+    assert response.status_code == 422 # Unprocessable Entity

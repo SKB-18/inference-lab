@@ -1,27 +1,79 @@
+import pytest
 from fastapi.testclient import TestClient
 from server.app import app
 
-client = TestClient(app)
+@pytest.fixture
+def client():
+    with TestClient(app) as c:
+        yield c
 
-def test_health():
+def test_health(client):
     response = client.get("/health")
     assert response.status_code == 200
-    assert response.json() == {"status": "healthy"}
+    data = response.json()
+    assert data["status"] == "healthy"
+    assert data["engine"] == "HFEngine"
 
-def test_completions_streaming():
+def test_list_models(client):
+    response = client.get("/v1/models")
+    assert response.status_code == 200
+    data = response.json()
+    assert "data" in data
+    assert len(data["data"]) > 0
+
+def test_telemetry(client):
+    response = client.get("/v1/telemetry")
+    assert response.status_code == 200
+    data = response.json()
+    assert "batching" in data
+    assert "speculative" in data
+    assert "cache_eviction" in data
+
+def test_completions_real_model(client):
     response = client.post(
         "/v1/completions", 
-        json={"prompt": "Hello world", "max_tokens": 5}
+        json={"prompt": "Say hi", "max_tokens": 5, "mode": "real"}
     )
     assert response.status_code == 200
-    # FastAPI streaming response type
-    assert response.headers["content-type"] == "text/event-stream; charset=utf-8"
+    assert "text/event-stream" in response.headers["content-type"]
     
-    # Collect streamed bytes
     content = b""
     for chunk in response.iter_bytes():
         content += chunk
-        
     assert len(content) > 0
-    decoded = content.decode("utf-8")
-    assert "Hello" in decoded or "simulated" in decoded
+
+def test_completions_batching_mode(client):
+    response = client.post(
+        "/v1/completions", 
+        json={"prompt": "Test batching", "max_tokens": 5, "mode": "batching"}
+    )
+    assert response.status_code == 200
+    content = response.content.decode("utf-8")
+    assert len(content) > 0
+
+def test_completions_speculative_mode(client):
+    response = client.post(
+        "/v1/completions", 
+        json={"prompt": "Test speculative", "max_tokens": 5, "mode": "speculative"}
+    )
+    assert response.status_code == 200
+    content = response.content.decode("utf-8")
+    assert len(content) > 0
+
+def test_completions_eviction_mode(client):
+    response = client.post(
+        "/v1/completions", 
+        json={"prompt": "Test cache eviction", "max_tokens": 5, "mode": "eviction"}
+    )
+    assert response.status_code == 200
+    content = response.content.decode("utf-8")
+    assert len(content) > 0
+
+def test_completions_zero_tokens(client):
+    response = client.post(
+        "/v1/completions", 
+        json={"prompt": "Zero test", "max_tokens": 0, "mode": "real"}
+    )
+    assert response.status_code == 200
+    content = response.content.decode("utf-8")
+    assert len(content) == 0
