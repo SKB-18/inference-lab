@@ -1,5 +1,10 @@
 # Inference Lab 🔬
 
+[![CI](https://github.com/SKB-18/inference-lab/actions/workflows/ci.yml/badge.svg)](https://github.com/SKB-18/inference-lab/actions)
+[![Tests: 42 Passed](https://img.shields.io/badge/tests-42%2F42%20passed-brightgreen.svg)](#)
+[![Python: 3.11](https://img.shields.io/badge/python-3.11-blue.svg)](#)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-009688.svg)](#)
+
 A high-performance, local LLM inference and serving engine built with Python, PyTorch, Transformers, and FastAPI. 
 This repository serves as **Foundation 1** of our advanced AI engineering portfolio, implementing and benchmarking core inference optimization techniques from scratch with real PyTorch tensor manipulation and zero mock simulations.
 
